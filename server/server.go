@@ -2,7 +2,6 @@ package server
 
 import (
 	"errors"
-	"fmt"
 	"log"
 	"net/http"
 
@@ -23,14 +22,24 @@ type (
 		GetAll(ctx context.Context) ([]*model.Todo, error)
 		Create(ctx context.Context, task string) (*model.Todo, error)
 		MarkDone(ctx context.Context, id string) (*model.Todo, error)
-		Close() error
 	}
 )
 
-func Start(port int, db TodoStore) error {
+type ServerOptsFunc func(*gin.Engine)
+
+func WithQuietStartup() ServerOptsFunc {
+	return func(_ *gin.Engine) {
+		gin.DebugPrintRouteFunc = func(httpMethod, absolutePath, handlerName string, nuHandlers int) {}
+	}
+}
+
+func New(db TodoStore, opts ...ServerOptsFunc) *gin.Engine {
 	r := gin.Default()
+	for _, opt := range opts {
+		opt(r)
+	}
 	if err := r.SetTrustedProxies(nil); err != nil {
-		return err
+		log.Printf("set trusted proxies: %v\n", err)
 	}
 	routes := &routes{db}
 
@@ -38,8 +47,7 @@ func Start(port int, db TodoStore) error {
 	r.GET("/todo/:id", routes.GetTodoById())
 	r.PATCH("/todo/:id", routes.MarkDone())
 	r.POST("/todo", routes.CreateTodo())
-
-	return r.Run(fmt.Sprintf(":%d", port))
+	return r
 }
 
 func (r *routes) GetAllTodos() gin.HandlerFunc {
@@ -111,10 +119,6 @@ func (r *routes) MarkDone() gin.HandlerFunc {
 
 		c.JSON(http.StatusOK, todo)
 	}
-}
-
-func (r *routes) Close() {
-	r.store.Close()
 }
 
 func internalServerError(c *gin.Context) {

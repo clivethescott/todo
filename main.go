@@ -13,7 +13,6 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	if err := server.Start(8080, store); err != nil {
-		log.Fatal(err)
-	}
+	srv := server.New(store)
+	log.Fatal(srv.Run(":8080"))
 }
